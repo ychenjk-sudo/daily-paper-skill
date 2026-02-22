@@ -24,6 +24,7 @@ description: |
   - Semantic Scholar（追踪特定作者）
   - GitHub Trending（新开源项目）
   - X/Twitter（研究者动态）
+  - Hugging Face（模型/数据集/Spaces）
 - 智能筛选与主题相关的高质量论文
 - 重点关注顶级机构和重要论文系列
 - 生成结构化中文报告
@@ -58,6 +59,12 @@ python scripts/fetch_github.py --output /tmp/github_repos.json
 python scripts/fetch_x.py --output /tmp/x_tweets.json
 ```
 需要配置 bird skill 的 X cookies。
+
+**1.6 Hugging Face（模型/数据集/Spaces）**
+```bash
+python scripts/fetch_huggingface.py --output /tmp/huggingface.json
+```
+获取 robotics、RL、world-model 等标签的最新模型和数据集。
 
 输出 JSON 包含：
 - `papers`: 候选论文列表（最多 80 篇）

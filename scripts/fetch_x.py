@@ -2,7 +2,7 @@
 """
 Daily Paper - X/Twitter 获取脚本
 追踪 AI 研究者的推文，发现新论文/项目
-需要配置 X API 凭证或使用 cookies
+使用 bird CLI + cookies 认证
 """
 
 import argparse
@@ -11,19 +11,24 @@ import os
 import subprocess
 from datetime import datetime
 
+# X credentials 配置路径
+X_CREDENTIALS_PATH = "/workspace/ai-masters-quotes/config/x_credentials.json"
+
 # 重点关注的 X 账号
 PRIORITY_ACCOUNTS = [
     "ylecun",           # Yann LeCun
-    "kaborosolov",      # Pieter Abbeel (假设)
+    "PieterAbbeel",     # Pieter Abbeel
     "chelseabfinn",     # Chelsea Finn
-    "daborosolov",      # Danijar Hafner (假设)
+    "daborosolov",      # Danijar Hafner
     "_akhaliq",         # AK - 论文速递
-    "ai_borealis",      # AI 新闻
-    "deepaboromind",    # DeepMind
+    "GoogleDeepMind",   # DeepMind
     "GoogleAI",         # Google AI
     "OpenAI",           # OpenAI
-    "MetaAI",           # Meta AI
+    "AIatMeta",         # Meta AI
     "ABOROSOLOV",       # NVIDIA AI
+    "DrJimFan",         # Jim Fan (NVIDIA)
+    "AndrewYNg",        # Andrew Ng
+    "kaborosolov",      # Andrej Karpathy
 ]
 
 # 论文相关关键词
@@ -34,10 +39,19 @@ PAPER_KEYWORDS = [
 ]
 
 
-def fetch_with_bird_skill(accounts: list, output_path: str) -> dict:
+def load_credentials() -> tuple:
+    """从配置文件加载 X credentials"""
+    try:
+        with open(X_CREDENTIALS_PATH, "r") as f:
+            creds = json.load(f)
+            return creds.get("auth_token"), creds.get("ct0")
+    except:
+        return None, None
+
+
+def fetch_with_bird_cli(accounts: list, output_path: str) -> dict:
     """
-    使用 bird skill 获取推文
-    需要先配置 X cookies
+    使用 bird CLI 获取推文
     """
     results = {
         "source": "x_twitter",
@@ -46,26 +60,33 @@ def fetch_with_bird_skill(accounts: list, output_path: str) -> dict:
         "errors": [],
     }
     
-    # 检查 bird skill 是否可用
-    bird_script = "/workspace/openclaw/skills/bird/scripts/bird.py"
-    if not os.path.exists(bird_script):
-        results["errors"].append("Bird skill not found. Install from clawhub.")
+    # 加载 credentials
+    auth_token, ct0 = load_credentials()
+    if not auth_token or not ct0:
+        results["errors"].append("X credentials not found. Check " + X_CREDENTIALS_PATH)
         return results
+    
+    env = os.environ.copy()
+    env["AUTH_TOKEN"] = auth_token
+    env["CT0"] = ct0
     
     for account in accounts:
         try:
-            # 调用 bird skill 获取用户推文
-            cmd = ["python", bird_script, "timeline", account, "--limit", "10"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            # 使用 bird CLI 获取用户推文
+            cmd = ["bird", "user-tweets", f"@{account}", "-n", "10", "--json"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=env)
             
             if result.returncode == 0:
-                # 解析输出（假设是 JSON 或文本格式）
                 tweets = parse_bird_output(result.stdout, account)
                 results["tweets"].extend(tweets)
+                print(f"  @{account}: {len(tweets)} tweets")
             else:
-                results["errors"].append(f"{account}: {result.stderr[:100]}")
+                error_msg = result.stderr[:100] if result.stderr else "Unknown error"
+                results["errors"].append(f"@{account}: {error_msg}")
+        except subprocess.TimeoutExpired:
+            results["errors"].append(f"@{account}: timeout")
         except Exception as e:
-            results["errors"].append(f"{account}: {str(e)}")
+            results["errors"].append(f"@{account}: {str(e)}")
     
     return results
 
@@ -115,7 +136,7 @@ def main():
     
     print(f"Fetching tweets from {len(args.accounts)} accounts...")
     
-    results = fetch_with_bird_skill(args.accounts, args.output)
+    results = fetch_with_bird_cli(args.accounts, args.output)
     
     # 筛选论文相关
     paper_tweets = filter_paper_related(results["tweets"])

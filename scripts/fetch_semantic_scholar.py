@@ -24,6 +24,8 @@ PRIORITY_AUTHORS = {
     "Danijar Hafner": "2059290",
     "Kaiming He": "2164085",
     "Ilya Sutskever": "1695689",
+    # NVIDIA Robotics / DreamZero / DreamDojo
+    "Jim Fan (Linxi Fan)": "3275727",
 }
 
 

@@ -1,98 +1,93 @@
 ---
 name: daily-paper
 description: |
-  每日论文速递 - 自动化学术调研工具
+  具身智能论文速递 - 自动化学术调研工具
   
-  自动从 arXiv 获取 VLA、World Model、RL 领域的最新论文，智能筛选高质量研究，生成结构化中文报告并发布到飞书文档。
+  自动从 arXiv 获取具身智能领域最新论文，智能筛选高质量研究，生成结构化中文报告并发布到飞书文档+卡片。
   
   使用场景：
-  - 收到 YouTube 学术论文推荐链接时
   - 用户要求"今日论文"、"论文速递"、"学术调研"
-  - 需要追踪 AI/机器人/自动驾驶领域最新研究
-  - 定时任务自动执行每日调研
+  - 需要追踪具身智能/自动驾驶领域最新研究
+  - 定时任务自动执行每日/每周调研
 ---
 
-# Daily Paper - 每日论文速递
+# Daily Paper - 具身智能论文速递
 
-自动化学术调研工具，专注于 AI + Robotics 领域。
+自动化学术调研工具，专注于具身智能（Embodied AI）领域。
 
-## 功能
+## 研究方向（按优先级排序）
 
-- **多数据源获取**：
-  - arXiv（cs.RO, cs.LG, cs.CV, cs.AI）
-  - Papers With Code（带代码的论文）
-  - Semantic Scholar（追踪特定作者）
-  - GitHub Trending（新开源项目）
-  - X/Twitter（研究者动态）
-  - Hugging Face（模型/数据集/Spaces）
-- 智能筛选与主题相关的高质量论文
-- 重点关注顶级机构和重要论文系列
-- 生成结构化中文报告
-- 自动发布到飞书文档
+1. **VLA / 多模态机器人** - Vision-Language-Action、多模态指令控制
+2. **世界模型 (World Model)** - 视频预测、物理模拟、生成式世界模型
+3. **强化学习 (RL)** - Robot RL、Imitation Learning、Offline RL
+4. **仿真 (Simulation)** - Sim2Real、物理仿真、可微仿真
+5. **自动驾驶** - 端到端驾驶、BEV、占用网络
+
+**不收录**：开源工具/框架、效率优化、纯数据集、纯 LLM、纯视觉
+
+## 数据源
+
+- **arXiv**（主要）: cs.RO, cs.LG, cs.CV, cs.AI
+- **Semantic Scholar**: 追踪重点作者（Jim Fan, Pieter Abbeel, Sergey Levine 等）
+- **GitHub Trending**: 新开源项目
+- **Hugging Face**: robotics、RL、world-model 标签
 
 ## 执行流程
 
-### 步骤 1：获取数据（多数据源）
+### 步骤 1：获取数据
 
-**1.1 arXiv（主要来源）**
 ```bash
+# arXiv
 python scripts/fetch.py --output /tmp/arxiv_papers.json
-```
 
-**1.2 Papers With Code（带代码的论文）**
-```bash
-python scripts/fetch_pwc.py --output /tmp/pwc_papers.json
-```
+# Semantic Scholar（重点作者）
+python scripts/fetch_semantic_scholar.py --days 7 --output /tmp/s2_papers.json
 
-**1.3 Semantic Scholar（追踪重点作者）**
-```bash
-python scripts/fetch_semantic_scholar.py --output /tmp/s2_papers.json
-```
-
-**1.4 GitHub Trending（新项目）**
-```bash
+# GitHub Trending
 python scripts/fetch_github.py --output /tmp/github_repos.json
-```
 
-**1.5 X/Twitter（研究者动态）**
-```bash
-python scripts/fetch_x.py --output /tmp/x_tweets.json
-```
-需要配置 bird skill 的 X cookies。
-
-**1.6 Hugging Face（模型/数据集/Spaces）**
-```bash
+# Hugging Face
 python scripts/fetch_huggingface.py --output /tmp/huggingface.json
 ```
-获取 robotics、RL、world-model 等标签的最新模型和数据集。
-
-输出 JSON 包含：
-- `papers`: 候选论文列表（最多 80 篇）
-- `is_priority`: 是否来自重点机构/系列
-- `topic_relevance`: 各主题相关性分数
-- `primary_topic`: 主要分类（VLA/World Model/RL）
 
 ### 步骤 2：筛选论文
 
-从候选中选出 6-12 篇，评分维度：
+日报：3-6 篇 | 周报：4-6 篇
+
+评分维度：
 - Novelty（新颖性）
 - Impact（潜在影响力）
-- Technical Soundness（技术可信度）
-- Reproducibility（可复现性）
 - Engineering Value（工程价值）
 
-`is_priority=true` 的论文同等质量下优先。
+重点机构优先：NVIDIA, DeepMind, Berkeley, Stanford, MIT, Tesla AI, Physical Intelligence
 
 ### 步骤 3：生成报告
 
-保存到 `/workspace/daily-papers/YYYY-MM-DD-cn.md`
+**报告结构**：
+```
+# 具身智能论文速递 (日期)
+## 📌 摘要
+## 🔮 Crossing Trend（基于当期论文的客观事实）
+## 📚 论文分类详情
+  ### 🤖 VLA / 多模态
+  ### 🌍 世界模型
+  ### 🎮 强化学习
+  ### 🚗 自动驾驶
+```
 
-报告结构见 [references/report-template.md](references/report-template.md)
+**Crossing Trend 格式**：
+- 本周证据：哪些论文体现了这个趋势
+- 技术迁移：哪项技术从哪个领域迁移过来
+- 趋势判断：基于事实的客观判断
 
-### 步骤 4：发布到飞书
+### 步骤 4：发布
 
 ```bash
+# 发布到飞书文档（新内容在顶部）
 python scripts/feishu.py --input /workspace/daily-papers/YYYY-MM-DD-cn.md --doc-id <DOC_ID>
+
+# 发送飞书卡片
+python /workspace/scripts/feishu_card.py --to <OPEN_ID> --template daily-paper --data <JSON_FILE>
 ```
 
 ## 配置
@@ -100,24 +95,36 @@ python scripts/feishu.py --input /workspace/daily-papers/YYYY-MM-DD-cn.md --doc-
 ### 重点关注机构
 
 ```
-DeepMind, UC Berkeley/BAIR, NVIDIA, 1X Technologies, Figure AI,
-Stanford, MIT, OpenAI, Anthropic, Tesla AI, Physical Intelligence,
-Covariant, Meta AI/FAIR, Yann LeCun
+NVIDIA, DeepMind, UC Berkeley/BAIR, Stanford, MIT, 
+Tesla AI, Physical Intelligence, 1X Technologies, Figure AI,
+OpenAI, Anthropic, Meta AI/FAIR, Covariant
+```
+
+### 重点作者（Semantic Scholar 追踪）
+
+```
+Jim Fan (Linxi Fan), Pieter Abbeel, Sergey Levine, Chelsea Finn,
+Danijar Hafner, Yann LeCun, Kaiming He, Ilya Sutskever
 ```
 
 ### 重点论文系列
 
 ```
-Dreamer 系列, RT 系列, OpenVLA/Octo, ALOHA, JEPA 系列
+Dreamer 系列, DreamZero/DreamDojo, RT 系列, OpenVLA/Octo, ALOHA, JEPA 系列
 ```
 
-### 筛选主题
+## 飞书配置
 
-- **VLA**: Vision-Language-Action, multimodal robot, instruction following
-- **World Model**: world modeling, dynamics model, latent dynamics, dreamer
-- **RL**: reinforcement learning, offline RL, model-based RL, imitation learning
+- **文档 ID**: WPmJdLKAvohbGaxBRmLc08MVn5f
+- **文档链接**: https://chj.feishu.cn/docx/WPmJdLKAvohbGaxBRmLc08MVn5f
+- **推送对象**: ou_6d4bdf64620355814e6bc0cfd8763602
 
-## 定时任务配置
+## Prompt 文件
+
+- 日报卡片：`/workspace/prompts/daily-paper-card.md`
+- 周报卡片：`/workspace/prompts/weekly-paper-card.md`
+
+## 定时任务
 
 ```json
 {
@@ -126,24 +133,10 @@ Dreamer 系列, RT 系列, OpenVLA/Octo, ALOHA, JEPA 系列
   "sessionTarget": "isolated",
   "payload": {
     "kind": "agentTurn",
-    "model": "gemini"
+    "model": "gemini",
+    "deliver": true,
+    "channel": "feishu",
+    "to": "ou_6d4bdf64620355814e6bc0cfd8763602"
   }
 }
 ```
-
-## 输出格式
-
-论文标题格式：`英文原标题（保留关键词的中文翻译）`
-
-示例：
-> Dreaming to Assist: Learning to Align with Human Goals via World Models（Dreaming to Assist：通过世界模型学习与人类目标对齐）
-
-每篇论文输出：
-- 一句话摘要
-- 解决的工程/算法瓶颈
-- 核心改进点（≤3条）
-- 工程落地潜力
-- 风险与局限
-- 对自动驾驶/机器人的启示
-- 应用场景
-- 论文链接（含代码）

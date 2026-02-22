@@ -134,27 +134,37 @@ def parse_markdown_to_blocks(content: str) -> List[Dict]:
     return children
 
 
-def write_to_feishu_doc(doc_id: str, blocks: List[Dict], token: str, append: bool = True) -> bool:
-    """将内容块写入飞书文档"""
+def write_to_feishu_doc(doc_id: str, blocks: List[Dict], token: str, prepend: bool = True) -> bool:
+    """将内容块写入飞书文档
     
-    if not append:
-        # 清除现有内容
-        blocks_resp = requests.get(
-            f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_id}/blocks/{doc_id}/children",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        existing_blocks = blocks_resp.json().get("data", {}).get("items", [])
-        
-        for block in existing_blocks:
-            block_id = block.get("block_id")
-            requests.delete(
-                f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_id}/blocks/{block_id}",
-                headers={"Authorization": f"Bearer {token}"}
-            )
-        print(f"Cleared {len(existing_blocks)} existing blocks")
+    Args:
+        doc_id: 飞书文档 ID
+        blocks: 要写入的内容块
+        token: 飞书 access token
+        prepend: True=插入到顶部（时间倒序），False=追加到底部
+    """
+    
+    # 获取文档现有块
+    blocks_resp = requests.get(
+        f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_id}/blocks/{doc_id}/children",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    existing_blocks = blocks_resp.json().get("data", {}).get("items", [])
+    
+    # 在新内容后添加分隔线
+    blocks = blocks + [make_divider()]
+    
+    # 确定插入位置
+    if prepend and existing_blocks:
+        # 插入到第一个块之前
+        first_block_id = existing_blocks[0].get("block_id")
+        index = 0
+        print(f"Prepending before block: {first_block_id}")
     else:
-        # 追加模式：先添加分隔线
-        blocks = [make_divider()] + blocks
+        # 追加到末尾
+        first_block_id = None
+        index = -1
+        print("Appending to end of document")
     
     # 批量创建块
     batch_size = 30
@@ -162,13 +172,21 @@ def write_to_feishu_doc(doc_id: str, blocks: List[Dict], token: str, append: boo
     
     for i in range(0, len(blocks), batch_size):
         batch = blocks[i:i+batch_size]
+        
+        # 构建请求
+        payload = {"children": batch}
+        if prepend and existing_blocks:
+            payload["index"] = index
+            # 每批次后更新 index（已插入的块数）
+            index += len(batch)
+        
         resp = requests.post(
             f"https://open.feishu.cn/open-apis/docx/v1/documents/{doc_id}/blocks/{doc_id}/children",
             headers={
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json"
             },
-            json={"children": batch}
+            json=payload
         )
         result = resp.json()
         if result.get("code") == 0:
@@ -185,7 +203,7 @@ def main():
     parser = argparse.ArgumentParser(description="Write Daily Paper to Feishu Doc")
     parser.add_argument("--input", type=str, required=True, help="Input markdown file")
     parser.add_argument("--doc-id", type=str, required=True, help="Feishu document ID")
-    parser.add_argument("--replace", action="store_true", help="Replace instead of append")
+    parser.add_argument("--append", action="store_true", help="Append to end instead of prepend to top")
     args = parser.parse_args()
     
     # 读取 markdown 文件
@@ -201,8 +219,8 @@ def main():
     # 获取 token
     token = get_tenant_token()
     
-    # 写入飞书
-    success = write_to_feishu_doc(args.doc_id, blocks, token, append=not args.replace)
+    # 写入飞书（默认 prepend=True，即新内容放顶部）
+    success = write_to_feishu_doc(args.doc_id, blocks, token, prepend=not args.append)
     
     if success:
         print(f"Successfully wrote to https://chj.feishu.cn/docx/{args.doc_id}")

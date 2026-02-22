@@ -18,7 +18,12 @@ description: |
 
 ## 功能
 
-- 从 arXiv 自动获取论文（cs.RO, cs.LG, cs.CV, cs.AI）
+- **多数据源获取**：
+  - arXiv（cs.RO, cs.LG, cs.CV, cs.AI）
+  - Papers With Code（带代码的论文）
+  - Semantic Scholar（追踪特定作者）
+  - GitHub Trending（新开源项目）
+  - X/Twitter（研究者动态）
 - 智能筛选与主题相关的高质量论文
 - 重点关注顶级机构和重要论文系列
 - 生成结构化中文报告
@@ -26,11 +31,33 @@ description: |
 
 ## 执行流程
 
-### 步骤 1：获取论文
+### 步骤 1：获取数据（多数据源）
 
+**1.1 arXiv（主要来源）**
 ```bash
 python scripts/fetch.py --output /tmp/arxiv_papers.json
 ```
+
+**1.2 Papers With Code（带代码的论文）**
+```bash
+python scripts/fetch_pwc.py --output /tmp/pwc_papers.json
+```
+
+**1.3 Semantic Scholar（追踪重点作者）**
+```bash
+python scripts/fetch_semantic_scholar.py --output /tmp/s2_papers.json
+```
+
+**1.4 GitHub Trending（新项目）**
+```bash
+python scripts/fetch_github.py --output /tmp/github_repos.json
+```
+
+**1.5 X/Twitter（研究者动态）**
+```bash
+python scripts/fetch_x.py --output /tmp/x_tweets.json
+```
+需要配置 bird skill 的 X cookies。
 
 输出 JSON 包含：
 - `papers`: 候选论文列表（最多 80 篇）

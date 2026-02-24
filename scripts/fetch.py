@@ -170,12 +170,19 @@ def check_priority(paper: dict) -> dict:
     """
     text = paper["title"] + " " + paper["summary"] + " " + " ".join(paper["authors"])
     
-    # 检查重点机构
+    # 检查重点机构（使用单词边界匹配，避免 "submit" 匹配到 "MIT"）
     paper["priority_affiliation"] = None
     for aff in PRIORITY_AFFILIATIONS:
-        if aff.lower() in text.lower():
-            paper["priority_affiliation"] = aff
-            break
+        # 对于短缩写（如 MIT, FAIR），使用单词边界匹配
+        if len(aff) <= 4:
+            pattern = r'\b' + re.escape(aff) + r'\b'
+            if re.search(pattern, text, re.IGNORECASE):
+                paper["priority_affiliation"] = aff
+                break
+        else:
+            if aff.lower() in text.lower():
+                paper["priority_affiliation"] = aff
+                break
     
     # 检查重点系列
     paper["priority_series"] = None

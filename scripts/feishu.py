@@ -32,34 +32,69 @@ def parse_text_with_styles(text: str) -> List[Dict]:
     elements = []
     pos = 0
     
-    # 匹配加粗 **text**
-    for match in re.finditer(r'\*\*([^*]+)\*\*', text):
-        # 添加匹配前的普通文本
-        if match.start() > pos:
-            plain = text[pos:match.start()]
-            if plain:
-                elements.append({"text_run": {"content": plain}})
+    # Pattern for bold: **text**
+    bold_pattern = re.compile(r'\*\*([^*]+)\*\*')
+    # Pattern for link: [text](url)
+    link_pattern = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
+    
+    while pos < len(text):
+        # Find next bold
+        bold_match = bold_pattern.search(text, pos)
+        # Find next link
+        link_match = link_pattern.search(text, pos)
         
-        # 添加加粗文本
-        bold_text = match.group(1)
-        elements.append({
-            "text_run": {
-                "content": bold_text,
-                "text_element_style": {"bold": True}
-            }
-        })
-        pos = match.end()
-    
-    # 添加剩余的普通文本
-    if pos < len(text):
-        remaining = text[pos:]
-        if remaining:
-            elements.append({"text_run": {"content": remaining}})
-    
-    # 如果没有任何格式，返回原文本
+        # Determine which comes first
+        next_match = None
+        match_type = None
+        
+        if bold_match and link_match:
+            if bold_match.start() < link_match.start():
+                next_match = bold_match
+                match_type = 'bold'
+            else:
+                next_match = link_match
+                match_type = 'link'
+        elif bold_match:
+            next_match = bold_match
+            match_type = 'bold'
+        elif link_match:
+            next_match = link_match
+            match_type = 'link'
+            
+        if next_match:
+            # Add text before match
+            if next_match.start() > pos:
+                elements.append({"text_run": {"content": text[pos:next_match.start()]}})
+            
+            if match_type == 'bold':
+                content = next_match.group(1)
+                elements.append({
+                    "text_run": {
+                        "content": content,
+                        "text_element_style": {"bold": True}
+                    }
+                })
+            elif match_type == 'link':
+                content = next_match.group(1)
+                url = next_match.group(2)
+                elements.append({
+                    "text_run": {
+                        "content": content,
+                        "text_element_style": {
+                            "link": {"url": url}
+                        }
+                    }
+                })
+            
+            pos = next_match.end()
+        else:
+            # No more matches
+            elements.append({"text_run": {"content": text[pos:]}})
+            break
+            
     if not elements:
         elements = [{"text_run": {"content": text}}]
-    
+        
     return elements
 
 
@@ -108,28 +143,91 @@ def make_divider() -> Dict:
     return {"block_type": 22, "divider": {}}
 
 
+def get_indent_level(line: str) -> int:
+    """计算行的缩进级别（每 2 个空格或 1 个 tab 为一级）"""
+    indent = 0
+    for char in line:
+        if char == ' ':
+            indent += 1
+        elif char == '\t':
+            indent += 2
+        else:
+            break
+    return indent // 2
+
+
 def parse_markdown_to_blocks(content: str) -> List[Dict]:
-    """将 Markdown 转换为飞书文档块"""
+    """将 Markdown 转换为飞书文档块，支持嵌套列表"""
     children = []
     lines = content.split('\n')
     
+    # 用于追踪列表嵌套的栈：[(indent_level, block_index)]
+    list_stack = []
+    
     for line in lines:
+        stripped = line.strip()
+        indent_level = get_indent_level(line)
+        
         if line.startswith('# '):
+            list_stack = []  # 标题重置列表栈
             children.append(make_heading_block(1, line[2:]))
         elif line.startswith('## '):
+            list_stack = []
             children.append(make_heading_block(2, line[3:]))
         elif line.startswith('### '):
+            list_stack = []
             children.append(make_heading_block(3, line[4:]))
         elif line.startswith('#### '):
+            list_stack = []
             children.append(make_heading_block(4, line[5:]))
         elif line.startswith('---'):
+            list_stack = []
             children.append(make_divider())
-        elif line.strip().startswith('- '):
-            children.append(make_bullet_block(line.strip()))
-        elif re.match(r'^\d+\.\s+', line.strip()):
-            children.append(make_numbered_block(line.strip()))
-        elif line.strip():
-            children.append(make_text_block(line.strip()))
+        elif stripped.startswith('- '):
+            block = make_bullet_block(stripped)
+            
+            if indent_level == 0:
+                # 顶级列表项
+                list_stack = [(0, len(children))]
+                children.append(block)
+            else:
+                # 嵌套列表项 - 作为独立块添加（飞书 API 不支持真正嵌套，用缩进文本代替）
+                # 在文本前添加缩进标记
+                indent_prefix = "　　" * indent_level  # 用全角空格缩进
+                block = make_bullet_block(indent_prefix + stripped[2:])
+                children.append(block)
+                
+        elif re.match(r'^\d+\.\s+', stripped):
+            block = make_numbered_block(stripped)
+            
+            if indent_level == 0:
+                list_stack = [(0, len(children))]
+                children.append(block)
+            else:
+                # 嵌套有序列表项 - 用缩进文本代替
+                indent_prefix = "　　" * indent_level
+                clean_text = re.sub(r'^\d+\.\s*', '', stripped).strip()
+                block = make_bullet_block(indent_prefix + clean_text)
+                children.append(block)
+                
+        elif stripped.startswith('> '):
+            # 引用块 - 转为斜体文本
+            list_stack = []
+            quote_text = stripped[2:]
+            elements = parse_text_with_styles(quote_text)
+            # 添加斜体样式
+            for elem in elements:
+                if "text_run" in elem:
+                    if "text_element_style" not in elem["text_run"]:
+                        elem["text_run"]["text_element_style"] = {}
+                    elem["text_run"]["text_element_style"]["italic"] = True
+            children.append({
+                "block_type": 2,
+                "text": {"elements": elements}
+            })
+        elif stripped:
+            list_stack = []
+            children.append(make_text_block(stripped))
     
     return children
 
